@@ -6,6 +6,9 @@ import torchvision as tv
 import torchvision.transforms as T
 from torch.utils.tensorboard import SummaryWriter
 import google.colab
+import threading
+import subprocess
+import IPython.display as display
 
 import model.losses as gan_losses
 import utils.misc as misc
@@ -15,6 +18,8 @@ from utils.data import ImageDataset
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str,
                     default="configs/finetune_mit.yaml", help="Path to yaml config file")
+parser.add_argument('--display_tensorboard', action='store_true',
+                    help="Display TensorBoard in the notebook")
 
 
 def freeze_encoder_parameters(generator):
@@ -32,6 +37,30 @@ def freeze_encoder_parameters(generator):
             param.requires_grad = False
 
 
+def launch_tensorboard(logdir):
+    """
+    Launch TensorBoard in a background thread
+    """
+    def run_tensorboard():
+        subprocess.run(["tensorboard", "--logdir", logdir, "--port", "6006"])
+    
+    tb_thread = threading.Thread(target=run_tensorboard)
+    tb_thread.daemon = True
+    tb_thread.start()
+    
+    # Wait for TensorBoard to start
+    time.sleep(5)
+    
+    # Display TensorBoard in the notebook
+    display.display(display.IFrame(
+        src="https://localhost:6006",
+        width=800,
+        height=600,
+    ))
+    
+    return tb_thread
+
+
 def training_loop(generator,        # generator network
                   discriminator,    # discriminator network
                   g_optimizer,      # generator optimizer
@@ -42,7 +71,8 @@ def training_loop(generator,        # generator network
                   val_dataloader,   # validation dataloader
                   last_n_iter,      # last iteration
                   writer,           # tensorboard writer
-                  config            # Config object
+                  config,           # Config object
+                  display_samples=True  # Whether to display samples during training
                   ):
 
     device = torch.device('cuda' if torch.cuda.is_available()
@@ -223,6 +253,22 @@ def training_loop(generator,        # generator network
                 "Stage 1", img_grids[3], global_step=n_iter, dataformats="CHW")
             writer.add_image(
                 "Stage 2", img_grids[4], global_step=n_iter, dataformats="CHW")
+            
+            # Display images in the notebook if requested
+            if display_samples and n_iter % (config.save_imgs_to_tb_iter * 5) == 0:
+                combined_grid = tv.utils.make_grid(
+                    torch.cat([img[:min(4, img.size(0))] for img in viz_images]), 
+                    nrow=4
+                )
+                from IPython.display import clear_output
+                import matplotlib.pyplot as plt
+                
+                plt.figure(figsize=(15, 10))
+                plt.imshow(combined_grid.permute(1, 2, 0).cpu().numpy())
+                plt.axis('off')
+                plt.title(f'Iteration {n_iter}')
+                clear_output(wait=True)
+                plt.show()
 
         # save example image grids to disk
         if config.save_imgs_to_disc_iter \
@@ -355,6 +401,17 @@ def main():
     # start tensorboard logging
     if config.tb_logging:
         writer = SummaryWriter(config.log_dir)
+        
+        # Start TensorBoard if requested
+        if args.display_tensorboard:
+            try:
+                # Make sure tensorboard is installed
+                import tensorboard
+                print("Starting TensorBoard in the background...")
+                tb_thread = launch_tensorboard(config.log_dir)
+                print("TensorBoard started. You can also access it at: https://localhost:6006")
+            except ImportError:
+                print("TensorBoard not found. Install with: pip install tensorboard")
     else:
         writer = None
 
@@ -377,7 +434,8 @@ def main():
                   val_dataloader,
                   last_n_iter,
                   writer,
-                  config)
+                  config,
+                  display_samples=True)
 
 
 if __name__ == '__main__':
