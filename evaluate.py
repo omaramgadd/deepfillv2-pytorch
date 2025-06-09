@@ -70,7 +70,10 @@ def evaluate_model(generator, test_dataloader, config, args):
             mask_np = mask.cpu().permute(0, 2, 3, 1).numpy()
             
             # Calculate metrics for each image in batch
-            for b in range(batch_real.size(0)):
+            for b in range(real_np.shape[0]):  # Use real_np shape instead of batch_real.size(0)
+                if b >= mask_np.shape[0]:  # Safety check to prevent index out of bounds
+                    continue
+                    
                 # Calculate PSNR
                 masked_region = mask_np[b, :, :, 0] > 0.5
                 if np.sum(masked_region) > 0:  # Only if mask is not empty
@@ -98,8 +101,8 @@ def evaluate_model(generator, test_dataloader, config, args):
             
             # Create a grid of images
             img_grid = tv.utils.make_grid(
-                torch.cat([img[:min(4, img.size(0))] for img in viz_images]), 
-                nrow=4
+                torch.cat([img[:min(1, img.size(0))] for img in viz_images]),  # Only use the first image from each batch
+                nrow=3
             )
             
             # Save the grid
@@ -137,7 +140,7 @@ def main():
     
     test_dataloader = torch.utils.data.DataLoader(
         test_dataset,
-        batch_size=config.batch_size,
+        batch_size=1,  # Set batch size to 1 to avoid indexing issues
         shuffle=False,
         num_workers=config.num_workers,
         pin_memory=True
