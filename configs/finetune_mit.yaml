@@ -6,8 +6,8 @@ dataset_path: '/content/deepfillv2-pytorch/mit_indoor_split/train'
 scan_subdirs: True
 random_crop: True
 random_horizontal_flip: False
-batch_size: 24
-num_workers: 2
+batch_size: 48
+num_workers: 4
 
 # training
 tb_logging: True
