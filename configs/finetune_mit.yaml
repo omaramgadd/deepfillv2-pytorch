@@ -5,7 +5,7 @@ model_restore: '/content/deepfillv2-pytorch/pretrained/states.pth'
 dataset_path: '/content/deepfillv2-pytorch/mit_indoor_split/train'
 scan_subdirs: True
 random_crop: True
-random_horizontal_flip: True
+random_horizontal_flip: False
 batch_size: 16
 num_workers: 2
 
