@@ -20,12 +20,24 @@ parser.add_argument('--config', type=str,
                     default="configs/finetune_mit.yaml", help="Path to yaml config file")
 parser.add_argument('--display_tensorboard', action='store_true',
                     help="Display TensorBoard in the notebook")
+parser.add_argument('--freeze_encoder', action='store_true', default=False,
+                    help="Whether to freeze encoder parameters during fine-tuning")
 
 
-def freeze_encoder_parameters(generator):
+def freeze_encoder_parameters(generator, freeze=False):
     """
     Freeze the encoder parameters in the generator to only fine-tune the decoder parts
+    
+    Args:
+        generator: The generator model
+        freeze: Whether to freeze encoder parameters (True) or train the whole network (False)
     """
+    if not freeze:
+        print("Training the entire network (encoder and decoder)")
+        return
+    
+    print("Freezing encoder parameters, only fine-tuning decoder parts")
+    
     # Stage 1 - Freeze downsampling blocks in CoarseGenerator
     for name, param in generator.stage1.named_parameters():
         if 'down_block' in name or 'conv1' in name:
@@ -33,7 +45,7 @@ def freeze_encoder_parameters(generator):
     
     # Stage 2 - Freeze downsampling blocks in FineGenerator
     for name, param in generator.stage2.named_parameters():
-        if 'pmconv1' in name or 'pmconv2_downsample' in name or 'conv1' in name or 'conv2_downsample' in name:
+        if 'ca_conv1' in name or 'ca_down_block' in name or 'conv_conv1' in name or 'conv_down_block' in name:
             param.requires_grad = False
 
 
@@ -302,6 +314,13 @@ def training_loop(generator,        # generator network
             last_save_time = current_time
             print(f"Time-based checkpoint saved at iteration {n_iter}")
 
+        # Add this after the generator update step in the training loop
+        if n_iter % 500 == 0:
+            torch.cuda.empty_cache()
+
+        # Add this after validation
+        torch.cuda.empty_cache()
+
 
 def main():
     args = parser.parse_args()
@@ -361,8 +380,8 @@ def main():
     generator = generator.to(device)
     discriminator = discriminator.to(device)
     
-    # Freeze encoder parameters for fine-tuning
-    freeze_encoder_parameters(generator)
+    # Freeze encoder parameters for fine-tuning if specified
+    freeze_encoder_parameters(generator, freeze=args.freeze_encoder)
     
     # Count trainable parameters
     def count_parameters(model):
