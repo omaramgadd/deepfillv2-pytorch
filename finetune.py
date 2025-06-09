@@ -314,13 +314,6 @@ def training_loop(generator,        # generator network
             last_save_time = current_time
             print(f"Time-based checkpoint saved at iteration {n_iter}")
 
-        # Add this after the generator update step in the training loop
-        if n_iter % 500 == 0:
-            torch.cuda.empty_cache()
-
-        # Add this after validation
-        torch.cuda.empty_cache()
-
 
 def main():
     args = parser.parse_args()
