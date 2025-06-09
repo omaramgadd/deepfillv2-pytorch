@@ -247,11 +247,18 @@ def training_loop(generator,        # generator network
         if config.tb_logging \
             and config.save_imgs_to_tb_iter \
             and n_iter % config.save_imgs_to_tb_iter == 0:
-            viz_images = [misc.pt_to_image(batch_real),
-                          misc.pt_to_image(batch_incomplete),
-                          misc.pt_to_image(batch_complete),
-                          misc.pt_to_image(x1), 
-                          misc.pt_to_image(x2)]
+            # Store these images for consistent visualization across TensorBoard and disk saves
+            tb_batch_real = batch_real
+            tb_batch_incomplete = batch_incomplete
+            tb_batch_complete = batch_complete
+            tb_x1 = x1
+            tb_x2 = x2
+            
+            viz_images = [misc.pt_to_image(tb_batch_real),
+                          misc.pt_to_image(tb_batch_incomplete),
+                          misc.pt_to_image(tb_batch_complete),
+                          misc.pt_to_image(tb_x1), 
+                          misc.pt_to_image(tb_x2)]
             img_grids = [tv.utils.make_grid(images[:config.viz_max_out], nrow=2)
                         for images in viz_images]
 
@@ -282,8 +289,20 @@ def training_loop(generator,        # generator network
                 clear_output(wait=True)
                 plt.show()
 
-        # save example image grids to disk
-        if config.save_imgs_to_disc_iter \
+            # Also save to disk if it's time to do so
+            if config.save_imgs_to_disc_iter \
+                and n_iter % config.save_imgs_to_disc_iter == 0:
+                # Use the same images that were used for TensorBoard visualization
+                disk_viz_images = [misc.pt_to_image(tb_batch_real), 
+                              misc.pt_to_image(tb_batch_incomplete),
+                              misc.pt_to_image(tb_batch_complete)]
+                disk_img_grids = [tv.utils.make_grid(images[:config.viz_max_out], nrow=2)
+                                                for images in disk_viz_images]
+                tv.utils.save_image(disk_img_grids, 
+                f"{config.checkpoint_dir}/images/iter_{n_iter}.png", 
+                nrow=3)
+        # save example image grids to disk (if not already saved with TensorBoard)
+        elif config.save_imgs_to_disc_iter \
             and n_iter % config.save_imgs_to_disc_iter == 0:
             viz_images = [misc.pt_to_image(batch_real), 
                           misc.pt_to_image(batch_incomplete),
