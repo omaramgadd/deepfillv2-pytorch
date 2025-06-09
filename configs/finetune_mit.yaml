@@ -6,7 +6,7 @@ dataset_path: '/content/deepfillv2-pytorch/mit_indoor_split/train'
 scan_subdirs: True
 random_crop: True
 random_horizontal_flip: False
-batch_size: 16
+batch_size: 24
 num_workers: 2
 
 # training
@@ -18,11 +18,11 @@ use_cuda_if_available: True
 random_seed: 42
 
 # Reduced learning rate for fine-tuning
-g_lr: 0.00005
+g_lr: 0.0001
 g_beta1: 0.5
 g_beta2: 0.999
 
-d_lr: 0.00002
+d_lr: 0.0001
 d_beta1: 0.5
 d_beta2: 0.999
 
