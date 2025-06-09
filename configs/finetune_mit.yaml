@@ -1,0 +1,54 @@
+# resume training
+model_restore: '/content/deepfillv2-pytorch/pretrained/states.pth'
+
+# dataloading
+dataset_path: '/content/deepfillv2-pytorch/mit_indoor_split/train'
+scan_subdirs: True
+random_crop: True
+random_horizontal_flip: True
+batch_size: 8
+num_workers: 2
+
+# training
+tb_logging: True
+log_dir: '/content/drive/MyDrive/deepfillv2_finetune/tb_logs'
+checkpoint_dir: '/content/drive/MyDrive/deepfillv2_finetune/checkpoints'
+
+use_cuda_if_available: True
+random_seed: 42
+
+# Reduced learning rate for fine-tuning
+g_lr: 0.00005
+g_beta1: 0.5
+g_beta2: 0.999
+
+d_lr: 0.00005
+d_beta1: 0.5
+d_beta2: 0.999
+
+max_iters: 100000
+
+# logging
+viz_max_out: 8
+print_iter: 100
+save_checkpoint_iter: 500
+save_imgs_to_tb_iter: 100
+save_imgs_to_disc_iter: 500
+save_cp_backup_iter: 3600  # Save backup every hour (approximately)
+
+img_shapes: [256, 256, 3]
+
+# mask options
+height: 128
+width: 128
+max_delta_height: 32
+max_delta_width: 32
+vertical_margin: 0
+horizontal_margin: 0
+
+# loss
+gan_loss: 'hinge'
+gan_loss_alpha: 1.0
+
+ae_loss: True
+l1_loss_alpha: 1.0 
