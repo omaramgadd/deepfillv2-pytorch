@@ -6,7 +6,7 @@ dataset_path: '/content/deepfillv2-pytorch/mit_indoor_split/train'
 scan_subdirs: True
 random_crop: True
 random_horizontal_flip: True
-batch_size: 8
+batch_size: 16
 num_workers: 2
 
 # training
@@ -22,14 +22,14 @@ g_lr: 0.00005
 g_beta1: 0.5
 g_beta2: 0.999
 
-d_lr: 0.00005
+d_lr: 0.00002
 d_beta1: 0.5
 d_beta2: 0.999
 
 max_iters: 100000
 
 # logging
-viz_max_out: 8
+viz_max_out: 10
 print_iter: 100
 save_checkpoint_iter: 500
 save_imgs_to_tb_iter: 100
