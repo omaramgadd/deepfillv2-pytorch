@@ -203,6 +203,11 @@ def training_loop(generator,        # generator network
                     writer.add_scalar(
                         f"losses/{k}", loss_log_mean, global_step=n_iter)                
                 losses_log[k].clear()
+            
+            # Flush TensorBoard writer to ensure logs are written to disk
+            if config.tb_logging:
+                writer.flush()
+        
 
         # Run validation occasionally
         if n_iter % (config.print_iter * 5) == 0 and val_dataloader is not None:
