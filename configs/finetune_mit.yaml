@@ -34,7 +34,7 @@ print_iter: 100
 save_checkpoint_iter: 500
 save_imgs_to_tb_iter: 100
 save_imgs_to_disc_iter: 500
-save_cp_backup_iter: 3600  # Save backup every hour (approximately)
+save_cp_backup_iter: 50000  # Save backup every hour (approximately)
 
 img_shapes: [256, 256, 3]
 
