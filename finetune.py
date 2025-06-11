@@ -223,21 +223,21 @@ def training_loop(generator,        # generator network
                     batch_val = batch_val.to(device)
                     
                     # Create mask for validation
-                    bbox = misc.random_bbox(config)
-                    regular_mask = misc.bbox2mask(config, bbox).to(device)
-                    irregular_mask = misc.brush_stroke_mask(config).to(device)
-                    mask = torch.logical_or(irregular_mask, regular_mask).to(torch.float32)
+                    val_bbox = misc.random_bbox(config)
+                    val_regular_mask = misc.bbox2mask(config, val_bbox).to(device)
+                    val_irregular_mask = misc.brush_stroke_mask(config).to(device)
+                    val_mask = torch.logical_or(val_irregular_mask, val_regular_mask).to(torch.float32)
                     
                     # Prepare input
-                    batch_incomplete = batch_val*(1.-mask)
-                    ones_x = torch.ones_like(batch_incomplete)[:, 0:1].to(device)
-                    x = torch.cat([batch_incomplete, ones_x, ones_x*mask], axis=1)
+                    val_batch_incomplete = batch_val*(1.-val_mask)
+                    val_ones_x = torch.ones_like(val_batch_incomplete)[:, 0:1].to(device)
+                    val_x = torch.cat([val_batch_incomplete, val_ones_x, val_ones_x*val_mask], axis=1)
                     
                     # Generate inpainted images
-                    x1, x2 = generator(x, mask)
+                    _, val_x2 = generator(val_x, val_mask)
                     
                     # Calculate validation loss
-                    val_ae_loss += torch.mean(torch.abs(batch_val - x2)).item()
+                    val_ae_loss += torch.mean(torch.abs(batch_val - val_x2)).item()
                 
                 val_ae_loss /= num_val_batches
                 val_losses_log['val_ae_loss'].append(val_ae_loss)
