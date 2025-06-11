@@ -84,7 +84,9 @@ def training_loop(generator,        # generator network
                   last_n_iter,      # last iteration
                   writer,           # tensorboard writer
                   config,           # Config object
-                  display_samples=True  # Whether to display samples during training
+                  display_samples=True,  # Whether to display samples during training
+                  vis_batch=None,   # Optional visualization batch
+                  vis_mask=None    # Optional visualization mask
                   ):
 
     device = torch.device('cuda' if torch.cuda.is_available()
@@ -207,7 +209,6 @@ def training_loop(generator,        # generator network
             # Flush TensorBoard writer to ensure logs are written to disk
             if config.tb_logging:
                 writer.flush()
-        
 
         # Run validation occasionally
         if n_iter % (config.print_iter * 5) == 0 and val_dataloader is not None:
@@ -328,7 +329,7 @@ def training_loop(generator,        # generator network
         
         # save state dict snapshot backup based on time
         current_time = time.time()
-        if config.save_cp_backup_iter \
+        if hasattr(config, 'save_cp_backup_iter') and config.save_cp_backup_iter \
             and (current_time - last_save_time) >= config.save_cp_backup_iter \
             and n_iter > init_n_iter:
             misc.save_states(f"states_{n_iter}.pth",
@@ -429,9 +430,22 @@ def main():
         generator.load_state_dict(state_dicts['G'])
         if 'D' in state_dicts.keys():
             discriminator.load_state_dict(state_dicts['D'])
-        # Don't load optimizer states for fine-tuning
+        # Load optimizer states but with modified learning rates
+        if 'G_optim' in state_dicts.keys():
+            # Load state but keep the new learning rate
+            old_lr = g_optimizer.param_groups[0]['lr']
+            g_optimizer.load_state_dict(state_dicts['G_optim'])
+            for param_group in g_optimizer.param_groups:
+                param_group['lr'] = old_lr
+        if 'D_optim' in state_dicts.keys():
+            # Load state but keep the new learning rate
+            old_lr = d_optimizer.param_groups[0]['lr']
+            d_optimizer.load_state_dict(state_dicts['D_optim'])
+            for param_group in d_optimizer.param_groups:
+                param_group['lr'] = old_lr
+        # Start from beginning for fine-tuning
         if 'n_iter' in state_dicts.keys():
-            last_n_iter = -1  # Start from beginning for fine-tuning
+            last_n_iter = -1
         print(f"Loaded models from: {config.model_restore}!")
 
     # start tensorboard logging
