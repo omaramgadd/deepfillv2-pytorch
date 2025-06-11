@@ -84,9 +84,7 @@ def training_loop(generator,        # generator network
                   last_n_iter,      # last iteration
                   writer,           # tensorboard writer
                   config,           # Config object
-                  display_samples=True,  # Whether to display samples during training
-                  vis_batch=None,   # Optional visualization batch
-                  vis_mask=None    # Optional visualization mask
+                  display_samples=True  # Whether to display samples during training
                   ):
 
     device = torch.device('cuda' if torch.cuda.is_available()
@@ -134,22 +132,6 @@ def training_loop(generator,        # generator network
         batch_incomplete = batch_real*(1.-mask)
         ones_x = torch.ones_like(batch_incomplete)[:, 0:1].to(device)
         x = torch.cat([batch_incomplete, ones_x, ones_x*mask], axis=1)
-        
-        # DEBUG: Print batch information every 500 iterations to verify consistency
-        if n_iter % 500 == 0:
-            print(f"\nDEBUG INFO at iteration {n_iter}:")
-            print(f"Batch real shape: {batch_real.shape}")
-            print(f"Mask shape: {mask.shape}")
-            print(f"Batch incomplete shape: {batch_incomplete.shape}")
-            # Calculate percentage of masked pixels
-            mask_percentage = torch.mean(mask).item() * 100
-            print(f"Percentage of pixels masked: {mask_percentage:.2f}%")
-            # Check if batch_incomplete is correctly masked version of batch_real
-            diff = torch.sum(torch.abs(batch_incomplete - batch_real * (1.-mask))).item()
-            print(f"Difference between batch_incomplete and batch_real*(1-mask): {diff}")
-            if diff > 1e-5:
-                print("WARNING: batch_incomplete is not correctly masked version of batch_real!")
-            print("")
 
         # generate inpainted images
         x1, x2 = generator(x, mask)
@@ -157,21 +139,6 @@ def training_loop(generator,        # generator network
 
         # apply mask and complete image
         batch_complete = batch_predicted*mask + batch_incomplete*(1.-mask)
-        
-        # DEBUG: Verify batch_complete is correctly assembled
-        if n_iter % 500 == 0:
-            # Check if batch_complete correctly combines batch_predicted and batch_incomplete
-            diff1 = torch.sum(torch.abs(batch_complete - batch_predicted*mask - batch_incomplete*(1.-mask))).item()
-            print(f"Difference in batch_complete assembly: {diff1}")
-            if diff1 > 1e-5:
-                print("WARNING: batch_complete is not correctly assembled!")
-            
-            # Verify the masked regions match between batch_incomplete and batch_complete
-            unmasked_diff = torch.sum(torch.abs(batch_complete*(1.-mask) - batch_incomplete*(1.-mask))).item()
-            print(f"Difference in unmasked regions: {unmasked_diff}")
-            if unmasked_diff > 1e-5:
-                print("WARNING: Unmasked regions differ between batch_complete and batch_incomplete!")
-            print("")
 
         # D training steps:
         batch_real_mask = torch.cat(
@@ -240,6 +207,7 @@ def training_loop(generator,        # generator network
             # Flush TensorBoard writer to ensure logs are written to disk
             if config.tb_logging:
                 writer.flush()
+        
 
         # Run validation occasionally
         if n_iter % (config.print_iter * 5) == 0 and val_dataloader is not None:
@@ -311,23 +279,20 @@ def training_loop(generator,        # generator network
                 "Stage 2", img_grids[4], global_step=n_iter, dataformats="CHW")
             
             # Display images in the notebook if requested
-            if vis_batch is not None and vis_mask is not None:
-                generator.eval()
-                with torch.no_grad():
-                    # Prepare input for the fixed visualization batch
-                    fixed_incomplete = vis_batch * (1. - vis_mask)
-                    fixed_ones_x = torch.ones_like(fixed_incomplete)[:, 0:1].to(device)
-                    fixed_x = torch.cat([fixed_incomplete, fixed_ones_x, fixed_ones_x * vis_mask], axis=1)
-                    
-                    # Generate inpainted images
-                    fixed_x1, fixed_x2 = generator(fixed_x, vis_mask)
-                    fixed_complete = fixed_x2 * vis_mask + fixed_incomplete * (1. - vis_mask)
-                    
-                    # Create visualization images
-                    viz_images = [misc.pt_to_image(vis_batch),
-                                  misc.pt_to_image(fixed_incomplete),
-                                  misc.pt_to_image(fixed_complete)]
-                generator.train()
+            if display_samples and n_iter % (config.save_imgs_to_tb_iter * 5) == 0:
+                combined_grid = tv.utils.make_grid(
+                    torch.cat([img[:min(4, img.size(0))] for img in viz_images]), 
+                    nrow=4
+                )
+                from IPython.display import clear_output
+                import matplotlib.pyplot as plt
+                
+                plt.figure(figsize=(15, 10))
+                plt.imshow(combined_grid.permute(1, 2, 0).cpu().numpy())
+                plt.axis('off')
+                plt.title(f'Iteration {n_iter}')
+                clear_output(wait=True)
+                plt.show()
 
             # Also save to disk if it's time to do so
             if config.save_imgs_to_disc_iter \
@@ -363,7 +328,7 @@ def training_loop(generator,        # generator network
         
         # save state dict snapshot backup based on time
         current_time = time.time()
-        if hasattr(config, 'save_cp_backup_iter') and config.save_cp_backup_iter \
+        if config.save_cp_backup_iter \
             and (current_time - last_save_time) >= config.save_cp_backup_iter \
             and n_iter > init_n_iter:
             misc.save_states(f"states_{n_iter}.pth",
@@ -372,25 +337,6 @@ def training_loop(generator,        # generator network
                         n_iter, config)
             last_save_time = current_time
             print(f"Time-based checkpoint saved at iteration {n_iter}")
-
-        # Visualize fixed batch if provided
-        if vis_batch is not None and vis_mask is not None:
-            generator.eval()
-            with torch.no_grad():
-                # Prepare input for the fixed visualization batch
-                fixed_incomplete = vis_batch * (1. - vis_mask)
-                fixed_ones_x = torch.ones_like(fixed_incomplete)[:, 0:1].to(device)
-                fixed_x = torch.cat([fixed_incomplete, fixed_ones_x, fixed_ones_x * vis_mask], axis=1)
-                
-                # Generate inpainted images
-                fixed_x1, fixed_x2 = generator(fixed_x, vis_mask)
-                fixed_complete = fixed_x2 * vis_mask + fixed_incomplete * (1. - vis_mask)
-                
-                # Create visualization images
-                viz_images = [misc.pt_to_image(vis_batch),
-                              misc.pt_to_image(fixed_incomplete),
-                              misc.pt_to_image(fixed_complete)]
-            generator.train()
 
 
 def main():
@@ -483,22 +429,9 @@ def main():
         generator.load_state_dict(state_dicts['G'])
         if 'D' in state_dicts.keys():
             discriminator.load_state_dict(state_dicts['D'])
-        # Load optimizer states but with modified learning rates
-        if 'G_optim' in state_dicts.keys():
-            # Load state but keep the new learning rate
-            old_lr = g_optimizer.param_groups[0]['lr']
-            g_optimizer.load_state_dict(state_dicts['G_optim'])
-            for param_group in g_optimizer.param_groups:
-                param_group['lr'] = old_lr
-        if 'D_optim' in state_dicts.keys():
-            # Load state but keep the new learning rate
-            old_lr = d_optimizer.param_groups[0]['lr']
-            d_optimizer.load_state_dict(state_dicts['D_optim'])
-            for param_group in d_optimizer.param_groups:
-                param_group['lr'] = old_lr
-        # Start from beginning for fine-tuning
+        # Don't load optimizer states for fine-tuning
         if 'n_iter' in state_dicts.keys():
-            last_n_iter = -1
+            last_n_iter = -1  # Start from beginning for fine-tuning
         print(f"Loaded models from: {config.model_restore}!")
 
     # start tensorboard logging
@@ -526,20 +459,6 @@ def main():
     except:
         print("Not running in Colab or Drive already mounted")
 
-    # Create a fixed set of visualization samples
-    vis_dataloader = torch.utils.data.DataLoader(val_dataset,
-                                               batch_size=config.viz_max_out,
-                                               shuffle=True,
-                                               drop_last=True,
-                                               num_workers=1)
-    vis_batch = next(iter(vis_dataloader)).to(device)
-    # Create a fixed mask for visualization
-    fixed_bbox = misc.random_bbox(config)
-    fixed_regular_mask = misc.bbox2mask(config, fixed_bbox).to(device)
-    fixed_irregular_mask = misc.brush_stroke_mask(config).to(device)
-    fixed_mask = torch.logical_or(fixed_irregular_mask, fixed_regular_mask).to(torch.float32)
-
-
     # start training
     training_loop(generator,
                   discriminator,
@@ -552,8 +471,7 @@ def main():
                   last_n_iter,
                   writer,
                   config,
-                  vis_batch=vis_batch,
-                  vis_mask=fixed_mask)
+                  display_samples=True)
 
 
 if __name__ == '__main__':
