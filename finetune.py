@@ -134,6 +134,22 @@ def training_loop(generator,        # generator network
         batch_incomplete = batch_real*(1.-mask)
         ones_x = torch.ones_like(batch_incomplete)[:, 0:1].to(device)
         x = torch.cat([batch_incomplete, ones_x, ones_x*mask], axis=1)
+        
+        # DEBUG: Print batch information every 500 iterations to verify consistency
+        if n_iter % 500 == 0:
+            print(f"\nDEBUG INFO at iteration {n_iter}:")
+            print(f"Batch real shape: {batch_real.shape}")
+            print(f"Mask shape: {mask.shape}")
+            print(f"Batch incomplete shape: {batch_incomplete.shape}")
+            # Calculate percentage of masked pixels
+            mask_percentage = torch.mean(mask).item() * 100
+            print(f"Percentage of pixels masked: {mask_percentage:.2f}%")
+            # Check if batch_incomplete is correctly masked version of batch_real
+            diff = torch.sum(torch.abs(batch_incomplete - batch_real * (1.-mask))).item()
+            print(f"Difference between batch_incomplete and batch_real*(1-mask): {diff}")
+            if diff > 1e-5:
+                print("WARNING: batch_incomplete is not correctly masked version of batch_real!")
+            print("")
 
         # generate inpainted images
         x1, x2 = generator(x, mask)
@@ -141,6 +157,21 @@ def training_loop(generator,        # generator network
 
         # apply mask and complete image
         batch_complete = batch_predicted*mask + batch_incomplete*(1.-mask)
+        
+        # DEBUG: Verify batch_complete is correctly assembled
+        if n_iter % 500 == 0:
+            # Check if batch_complete correctly combines batch_predicted and batch_incomplete
+            diff1 = torch.sum(torch.abs(batch_complete - batch_predicted*mask - batch_incomplete*(1.-mask))).item()
+            print(f"Difference in batch_complete assembly: {diff1}")
+            if diff1 > 1e-5:
+                print("WARNING: batch_complete is not correctly assembled!")
+            
+            # Verify the masked regions match between batch_incomplete and batch_complete
+            unmasked_diff = torch.sum(torch.abs(batch_complete*(1.-mask) - batch_incomplete*(1.-mask))).item()
+            print(f"Difference in unmasked regions: {unmasked_diff}")
+            if unmasked_diff > 1e-5:
+                print("WARNING: Unmasked regions differ between batch_complete and batch_incomplete!")
+            print("")
 
         # D training steps:
         batch_real_mask = torch.cat(
