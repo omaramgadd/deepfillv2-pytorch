@@ -280,20 +280,23 @@ def training_loop(generator,        # generator network
                 "Stage 2", img_grids[4], global_step=n_iter, dataformats="CHW")
             
             # Display images in the notebook if requested
-            if display_samples and n_iter % (config.save_imgs_to_tb_iter * 5) == 0:
-                combined_grid = tv.utils.make_grid(
-                    torch.cat([img[:min(4, img.size(0))] for img in viz_images]), 
-                    nrow=4
-                )
-                from IPython.display import clear_output
-                import matplotlib.pyplot as plt
-                
-                plt.figure(figsize=(15, 10))
-                plt.imshow(combined_grid.permute(1, 2, 0).cpu().numpy())
-                plt.axis('off')
-                plt.title(f'Iteration {n_iter}')
-                clear_output(wait=True)
-                plt.show()
+            if vis_batch is not None and vis_mask is not None:
+                generator.eval()
+                with torch.no_grad():
+                    # Prepare input for the fixed visualization batch
+                    fixed_incomplete = vis_batch * (1. - vis_mask)
+                    fixed_ones_x = torch.ones_like(fixed_incomplete)[:, 0:1].to(device)
+                    fixed_x = torch.cat([fixed_incomplete, fixed_ones_x, fixed_ones_x * vis_mask], axis=1)
+                    
+                    # Generate inpainted images
+                    fixed_x1, fixed_x2 = generator(fixed_x, vis_mask)
+                    fixed_complete = fixed_x2 * vis_mask + fixed_incomplete * (1. - vis_mask)
+                    
+                    # Create visualization images
+                    viz_images = [misc.pt_to_image(vis_batch),
+                                  misc.pt_to_image(fixed_incomplete),
+                                  misc.pt_to_image(fixed_complete)]
+                generator.train()
 
             # Also save to disk if it's time to do so
             if config.save_imgs_to_disc_iter \
@@ -338,6 +341,25 @@ def training_loop(generator,        # generator network
                         n_iter, config)
             last_save_time = current_time
             print(f"Time-based checkpoint saved at iteration {n_iter}")
+
+        # Visualize fixed batch if provided
+        if vis_batch is not None and vis_mask is not None:
+            generator.eval()
+            with torch.no_grad():
+                # Prepare input for the fixed visualization batch
+                fixed_incomplete = vis_batch * (1. - vis_mask)
+                fixed_ones_x = torch.ones_like(fixed_incomplete)[:, 0:1].to(device)
+                fixed_x = torch.cat([fixed_incomplete, fixed_ones_x, fixed_ones_x * vis_mask], axis=1)
+                
+                # Generate inpainted images
+                fixed_x1, fixed_x2 = generator(fixed_x, vis_mask)
+                fixed_complete = fixed_x2 * vis_mask + fixed_incomplete * (1. - vis_mask)
+                
+                # Create visualization images
+                viz_images = [misc.pt_to_image(vis_batch),
+                              misc.pt_to_image(fixed_incomplete),
+                              misc.pt_to_image(fixed_complete)]
+            generator.train()
 
 
 def main():
@@ -473,6 +495,20 @@ def main():
     except:
         print("Not running in Colab or Drive already mounted")
 
+    # Create a fixed set of visualization samples
+    vis_dataloader = torch.utils.data.DataLoader(val_dataset,
+                                               batch_size=config.viz_max_out,
+                                               shuffle=True,
+                                               drop_last=True,
+                                               num_workers=1)
+    vis_batch = next(iter(vis_dataloader)).to(device)
+    # Create a fixed mask for visualization
+    fixed_bbox = misc.random_bbox(config)
+    fixed_regular_mask = misc.bbox2mask(config, fixed_bbox).to(device)
+    fixed_irregular_mask = misc.brush_stroke_mask(config).to(device)
+    fixed_mask = torch.logical_or(fixed_irregular_mask, fixed_regular_mask).to(torch.float32)
+
+
     # start training
     training_loop(generator,
                   discriminator,
@@ -485,7 +521,8 @@ def main():
                   last_n_iter,
                   writer,
                   config,
-                  display_samples=True)
+                  vis_batch=vis_batch,
+                  vis_mask=fixed_mask)
 
 
 if __name__ == '__main__':
